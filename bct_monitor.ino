@@ -58,7 +58,6 @@ void IRAM_ATTR onTimer() {
   xSemaphoreGiveFromISR(timerSemaphore, NULL);
 }*/
 
-DynamicJsonBuffer jsonBuffer(4096);
 
 void printLocalTime()
 {
@@ -72,7 +71,7 @@ void printLocalTime()
   display.setCursor(0,0);
   display.println(&timeinfo, "%a %b %d %Y");
   display.println(&timeinfo, "%H:%M:%S %z");
-  display.display();
+  //display.display();
 }
 
 void setup() {
@@ -110,12 +109,15 @@ int statusCode = 0;
 
 int getRouteETA(char* route) {
   char postData[10];
+  DynamicJsonBuffer jsonBuffer(4096);
   int stopID = routeStops[route].stopID;
   std::string longName = routeStops[route].longName;
   sprintf(postData, "[\"%04d\"]", stopID);
   client.post("/TransitAPI/ETA/", "application/json", postData);
   statusCode = client.responseStatusCode();
   response = client.responseBody();
+  client.stop();
+  Serial.printf("%d\n%s\n\n", statusCode, response.c_str());
   if (statusCode == 200) {
     JsonObject& root = jsonBuffer.parseObject(response);
     JsonArray& arrivals = root["ArrivalEstimates"];
@@ -126,6 +128,7 @@ int getRouteETA(char* route) {
         break;
       }
     }
+    jsonBuffer.clear();
     return (int) round(nextETA);
   }
   return 0;
@@ -133,13 +136,14 @@ int getRouteETA(char* route) {
 
 void printRouteETA(char* route) {
   int routeETA = getRouteETA(route);
+  int etaMinutes = ceil((float)routeETA / 60.0);
   display.printf("%s: ", route);
   if (routeETA != 0) {
-    display.printf("%d\n", routeETA);
+    display.printf("%d min\n", etaMinutes);
   } else {
     display.printf("----\n");
   }
-  display.display();
+  //display.display();
 }
 
 
@@ -147,11 +151,14 @@ void loop() {
   display.clearDisplay();
   display.setCursor(0, 0);
   if (WiFiMulti.run() == WL_CONNECTED) {
+    display.setCursor(0, 16);
     printRouteETA("09S");
     printRouteETA("07E");
     printRouteETA("07W");
     printRouteETA("01N");
     printRouteETA("101N");
+    printLocalTime();
+    display.display();
   }
-  delay(30000);
+  delay(15000);
 }
